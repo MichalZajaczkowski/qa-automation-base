@@ -4,24 +4,47 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  schedule:
+    - cron: '17 20 * * *'  # Uruchamia testy codziennie o 21:18 UTC
 jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: lts/*
-    - name: Install dependencies
-      run: npm ci
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-    - name: Run Playwright tests
-      run: npx playwright test
-    - uses: actions/upload-artifact@v4
-      if: ${{ !cancelled() }}
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 30
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Instalacja Allure CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-jre
+          curl -o allure-2.18.1.tgz -Ls https://github.com/allure-framework/allure2/releases/download/2.18.1/allure-2.18.1.tgz
+          sudo tar -zxvf allure-2.18.1.tgz -C /opt/
+          sudo ln -s /opt/allure-2.18.1/bin/allure /usr/bin/allure
+
+      - name: Run Playwright tests with Allure reporter
+        run: npx playwright test --reporter=list,allure-playwright
+
+      - name: Generate Allure Report
+        if: always()
+        run: allure generate allure-results --clean -o allure-report
+
+      - name: Upload Allure Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allure-report
+          path: allure-report
+
